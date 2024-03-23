@@ -46,7 +46,7 @@
   <el-dialog @close="show = false" v-model="show" title="Вы уверены хотите удалить" center>
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleShow">Отмень</el-button>
+        <el-button @click="show = false">Отмень</el-button>
         <el-button :loading="loading" type="primary" @click="handleDelete(productId)">
           Удалить
         </el-button>
@@ -83,16 +83,12 @@ const handleEdit = (product: any) => {
   emits('edit', product)
 }
 
-const confirmDelete = (id: number) => {
+const confirmDelete = (id: any) => {
   productId.value = id
   show.value = true
 }
 
-// const handleCloseModal = () => {
-//   show.value = false
-// }
-
-const handleDelete = (productId: number) => {
+const handleDelete = (productId: any) => {
   emits('delete', productId)
   setTimeout(() => {
     show.value = false

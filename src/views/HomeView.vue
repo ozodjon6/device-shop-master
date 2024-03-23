@@ -271,7 +271,7 @@ function clearDataForm() {
     id: 0,
     model: '',
     releaseYear: '',
-    category: '',
+    category: null,
     price: '',
     createDate: '',
     visible: false
