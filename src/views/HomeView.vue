@@ -1,90 +1,36 @@
 <template>
   <main class="container">
-    <div>
-      <div class="header-top">
-        <el-button @click="openDialog" type="primary" :icon="Plus">Добавить</el-button>
-        <el-input
-          v-model="searchModel"
-          placeholder="Поиск по модели"
-          @input="debouncedFn"
-          clearable
-        />
-        <el-select
-          v-model="selectedCategory"
-          placeholder="Выберите категорию"
-          @change="fetchProducts"
-        >
-          <el-option value="" label="Все">Все</el-option>
-          <el-option
-            v-for="category in categories"
-            :key="category"
-            :label="category"
-            :value="category"
-          />
-        </el-select>
-      </div>
-      <el-pagination
-        v-model:current-page="currentPage"
-        v-model:page-size="pageSizeCount"
-        background
-        :page-sizes="[10, 20, 30, 40]"
-        layout="sizes, prev, pager, next"
-        :total="total"
-        @current-change="handleCurrentChange"
+    <div class="header-top">
+      <el-button @click="openDialog" type="primary" :icon="Plus">Добавить</el-button>
+      <el-input
+        v-model="searchModel"
+        placeholder="Поиск по модели"
+        @input="debouncedFn"
+        clearable
       />
+      <el-select
+        v-model="selectedCategory"
+        placeholder="Выберите категорию"
+        @change="fetchProducts"
+      >
+        <el-option value="" label="Все">Все</el-option>
+        <el-option
+          v-for="category in categories"
+          :key="category"
+          :label="category"
+          :value="category"
+        />
+      </el-select>
+    </div>
+    <div class="main-wrapper">
       <div class="table-container">
-        <table class="table-wrap" v-if="!products?.length || !loading">
-          <thead v-if="THeadLabel">
-            <tr>
-              <th v-for="(item, i) in THeadLabel" :key="i">
-                <span>{{ item }}</span>
-              </th>
-              <th></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="product in products" :key="product?.id">
-              <td>
-                <span>{{ product?.id }}</span>
-              </td>
-              <td>
-                <span>{{ product?.model }}</span>
-              </td>
-              <td>
-                <span>{{ dayjs(product?.releaseYear).format('YYYY') }}</span>
-              </td>
-              <td>
-                <span>{{ product?.category }}</span>
-              </td>
-              <td>
-                <span>{{ product?.price }}</span>
-              </td>
-              <td>
-                <span>{{ dayjs(product?.createDate).format('DD MM YYYY') }}</span>
-              </td>
-              <td>
-                <el-checkbox v-model="product.visible" label="Видимость" size="large" />
-              </td>
-              <td>
-                <el-button size="small" @click="handleEdit(product)">Edit</el-button>
-              </td>
-              <td>
-                <el-button size="small" type="danger" @click="show = true">Delete </el-button>
-              </td>
-              <el-dialog v-model="show" title="Вы уверены хотите удалить" center>
-                <template #footer>
-                  <div class="dialog-footer">
-                    <el-button @click="show = false">Отмень</el-button>
-                    <el-button type="primary" @click="handleDelete(product.id)">
-                      Удалить
-                    </el-button>
-                  </div>
-                </template>
-              </el-dialog>
-            </tr>
-          </tbody>
-        </table>
+        <Table
+          :list="products"
+          :loading="isLoading"
+          @edit="handleEdit"
+          @delete="handleDelete"
+          @show="show = true"
+        />
         <span class="no-data" v-if="!products?.length && !loading"> No data </span>
       </div>
       <el-skeleton style="width: 100%" :rows="5" animated :loading="loading">
@@ -97,7 +43,18 @@
           ></el-skeleton-item>
         </template>
       </el-skeleton>
+      <el-pagination
+        v-if="products?.length && total > 10"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSizeCount"
+        background
+        :page-sizes="[10, 20, 30, 40]"
+        layout="sizes, prev, pager, next"
+        :total="total"
+        @current-change="handleCurrentChange"
+      />
     </div>
+
     <el-dialog
       v-if="selectedProduct !== null"
       close-on-press-escape
@@ -124,7 +81,7 @@
               placeholder="Pick a year"
             />
           </el-form-item>
-          <el-form-item class="form-wrapper-el-item" label="Категорй">
+          <el-form-item prop="category" class="form-wrapper-el-item" label="Категорй">
             <el-select v-model="selectedProduct.category" placeholder="Выберите категорию">
               <el-option value="" label="Все">Все</el-option>
               <el-option
@@ -173,10 +130,9 @@
 import { ref, onMounted, watch, reactive } from 'vue'
 import axios from '@/services/axios'
 import { Plus } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
 import type { FormInstance, FormRules } from 'element-plus'
 import debounce from 'lodash.debounce'
-import { THeadLabel } from '@/types/common'
+import Table from '@/components/Table.vue'
 
 const formRef = ref<FormInstance>()
 
@@ -193,6 +149,7 @@ const loading = ref(false)
 const show = ref(false)
 const isShowOpenDialog = ref(false)
 const isLoading = ref(false)
+const isEdit = ref(false)
 
 interface RuleForm {
   id: number
@@ -263,19 +220,9 @@ watch(
   }
 )
 
-const isEdit = ref(false)
-
 const handleCloseModal = () => {
   isShowOpenDialog.value = false
-  selectedProduct.value = {
-    id: 0,
-    model: '',
-    releaseYear: '',
-    category: [],
-    price: '',
-    createDate: '',
-    visible: false
-  }
+  clearDataForm()
   formRef.value?.resetFields()
 }
 
@@ -298,6 +245,7 @@ const saveChanges = async () => {
 }
 
 const handleDelete = async (id: number) => {
+  isLoading.value = true
   try {
     await axios.delete(`/products/` + id)
 
@@ -306,8 +254,7 @@ const handleDelete = async (id: number) => {
       products.value.splice(index, 1)
       total.value -= 1 // Уменьшаем общее количество элементов
     }
-
-    show.value = false
+    isLoading.value = false
   } catch (error) {
     console.error('Ошибка при удалении товара', error)
   }
@@ -316,22 +263,26 @@ const handleDelete = async (id: number) => {
 const openDialog = () => {
   isShowOpenDialog.value = true
   isEdit.value = false
-  selectedProduct.value = {
-    id: 1,
+  clearDataForm()
+}
+
+function clearDataForm() {
+  return (selectedProduct.value = {
+    id: 0,
     model: '',
     releaseYear: '',
-    category: [],
+    category: '',
     price: '',
     createDate: '',
     visible: false
-  }
+  })
 }
 
 const submit = async () => {
-  isLoading.value = true
   try {
     const valid = await formRef.value?.validate()
     if (valid) {
+      isLoading.value = true
       const res = await axios.post('/products', {
         model: selectedProduct.value.model,
         releaseYear: selectedProduct.value.releaseYear,
@@ -360,6 +311,9 @@ onMounted(() => {
 })
 </script>
 <style>
+.main-wrapper {
+  padding-bottom: 90px;
+}
 .header-top {
   display: flex;
   align-items: center;
@@ -387,55 +341,22 @@ onMounted(() => {
 .el-form-item__content {
   width: 100%;
 }
-
-.table-wrap {
-  border-collapse: collapse;
-  width: 100%;
-}
-
 .table-container {
   overflow-x: scroll;
   width: 100%;
-  margin: 20px auto;
+  margin: 0 auto;
   border-collapse: collapse;
-}
-
-.table-container th,
-.table-container td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-
-tr {
-  width: 100%;
-}
-
-.table-container th {
-  background-color: #f2f2f2;
-}
-
-.table-container tr:nth-child(even) {
-  background-color: #f2f2f2;
-}
-
-.table-container tr:hover {
-  background-color: #ddd;
-}
-
-/* Center align text in table header */
-.table-container th {
-  text-align: center;
-}
-
-/* Center align text in table cells */
-.table-container td {
-  text-align: center;
 }
 
 .no-data {
   display: block;
   text-align: center;
   margin: 12px auto;
+}
+.el-pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 32px;
 }
 </style>
