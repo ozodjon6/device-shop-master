@@ -1,5 +1,5 @@
 import axios from 'axios'
 
-axios.defaults.baseURL = 'https://fake-json-server-zeta.vercel.app'
+axios.defaults.baseURL = 'https://ubiquitous-childlike-heath.glitch.me'
 
 export default axios
