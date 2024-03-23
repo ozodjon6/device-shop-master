@@ -25,6 +25,7 @@
     <div class="main-wrapper">
       <div class="table-container">
         <Table
+          v-if="!products?.length || !loading"
           :list="products"
           :loading="isLoading"
           @edit="handleEdit"
